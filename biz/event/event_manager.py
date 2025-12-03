@@ -1,3 +1,5 @@
+import os
+from datetime import datetime
 from blinker import Signal
 
 from biz.entity.review_entity import MergeRequestReviewEntity, PushReviewEntity
@@ -14,15 +16,26 @@ event_manager = {
 # 定义事件处理函数
 def on_merge_request_reviewed(mr_review_entity: MergeRequestReviewEntity):
     # 发送IM消息通知
+    # 格式化updated_at时间为 yyyy-MM-dd HH:mm:ss，时区用 env配置的 TZ
+    tz_env = os.environ.get('TZ', 'UTC')
+    try:
+        # 假设 updated_at 是整数 Unix 时间戳，尝试解析
+        updated_at_dt = datetime.fromtimestamp(mr_review_entity.updated_at)
+        # 格式化为 yyyy-MM-dd HH:mm:ss
+        formatted_updated_at = updated_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+    except (ValueError, TypeError):
+        # 如果解析失败，使用原始值
+        formatted_updated_at = mr_review_entity.updated_at
+
     im_msg = f"""
 ### 🔀 {mr_review_entity.project_name}: Merge Request
 
 #### 合并请求信息:
-- **提交者:** {mr_review_entity.author}
+- **提交者:** <at id='{mr_review_entity.author}'></at>
 
 - **源分支**: {mr_review_entity.source_branch}
 - **目标分支**: {mr_review_entity.target_branch}
-- **更新时间**: {mr_review_entity.updated_at}
+- **更新时间**: {formatted_updated_at}
 - **提交信息:** {mr_review_entity.commit_messages}
 
 - [查看合并详情]({mr_review_entity.url})
@@ -44,15 +57,32 @@ def on_push_reviewed(entity: PushReviewEntity):
     im_msg = f"### 🚀 {entity.project_name}: Push\n\n"
     im_msg += "#### 提交记录:\n"
 
+    tz_env = os.environ.get('TZ', 'UTC')
     for commit in entity.commits:
         message = commit.get('message', '').strip()
         author = commit.get('author', 'Unknown Author')
         timestamp = commit.get('timestamp', '')
         url = commit.get('url', '#')
+        
+        # 格式化 timestamp
+        try:
+            # 假设 timestamp 是整数 Unix 时间戳，尝试解析
+            timestamp_dt = datetime.fromtimestamp(timestamp)
+            # 格式化为 yyyy-MM-dd HH:mm:ss
+            formatted_timestamp = timestamp_dt.strftime('%Y-%m-%d %H:%M:%S')
+        except (ValueError, TypeError):
+            # 如果解析失败，尝试作为字符串解析
+            try:
+                timestamp_dt = datetime.fromisoformat(timestamp)
+                formatted_timestamp = timestamp_dt.strftime('%Y-%m-%d %H:%M:%S')
+            except (ValueError, TypeError):
+                # 如果还是失败，使用原始值
+                formatted_timestamp = timestamp
+        
         im_msg += (
             f"- **提交信息**: {message}\n"
             f"- **提交者**: {author}\n"
-            f"- **时间**: {timestamp}\n"
+            f"- **时间**: {formatted_timestamp} ({tz_env})\n"
             f"- [查看提交详情]({url})\n\n"
         )
 

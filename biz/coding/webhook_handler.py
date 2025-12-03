@@ -107,7 +107,11 @@ def handle_coding_pull_request_event(data: dict, coding_token: str, coding_url: 
         # 对于commits_text，暂时使用title，因为pull_request.json示例未提供提交消息列表
         commits_text = title
         review_result = CodeReviewer().review_and_strip_code(diff_content, commits_text)
-
+        commits = [{
+            'message': commits_text,
+            'author': author_name,
+            'email': author_email,
+        }]
         # 构造 MergeRequestReviewEntity
         entity = MergeRequestReviewEntity(
                 project_name=project_name,
@@ -115,7 +119,7 @@ def handle_coding_pull_request_event(data: dict, coding_token: str, coding_url: 
                 source_branch=source_branch,
                 target_branch=target_branch,
                 updated_at=int(datetime.now().timestamp()),
-                commits=[],
+                commits=commits,
                 score=CodeReviewer.parse_review_score(review_text=review_result),
                 url=web_url,
                 review_result=review_result,
