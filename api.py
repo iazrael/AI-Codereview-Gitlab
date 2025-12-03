@@ -8,14 +8,20 @@ import os
 import traceback
 from datetime import datetime
 from urllib.parse import urlparse
+import sys
+# 把当前目录加到path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from flask import Flask, request, jsonify
 
-from biz.gitlab.webhook_handler import slugify_url
 from biz.queue.worker import handle_merge_request_event, handle_push_event, handle_github_pull_request_event, \
     handle_github_push_event, handle_gitea_pull_request_event, handle_gitea_push_event
+from biz.coding.webhook_handler import handle_coding_pull_request_event, handle_coding_push_event
+from biz.git_provider.manager import GitProviderManager
+from biz.git_provider.parsers import gitlab_parser, github_parser, gitea_parser, coding_parser
+import importlib
 from biz.service.review_service import ReviewService
 from biz.utils.im import notifier
 from biz.utils.log import logger
@@ -25,6 +31,9 @@ from biz.utils.reporter import Reporter
 from biz.utils.config_checker import check_config
 
 api_app = Flask(__name__)
+
+# 初始化GitProviderManager
+git_provider_manager = GitProviderManager()
 
 push_review_enabled = os.environ.get('PUSH_REVIEW_ENABLED', '0') == '1'
 
@@ -108,128 +117,106 @@ def setup_scheduler():
 @api_app.route('/review/webhook', methods=['POST'])
 def handle_webhook():
     # 获取请求的JSON数据
-    if request.is_json:
-        data = request.get_json()
-        if not data:
-            return jsonify({"error": "Invalid JSON"}), 400
-        # 判断webhook来源
-        webhook_source_github = request.headers.get('X-GitHub-Event')
-        webhook_source_gitea = request.headers.get('X-Gitea-Event')
-
-        if webhook_source_gitea:  # Gitea webhook优先处理
-            return handle_gitea_webhook(webhook_source_gitea, data)
-        elif webhook_source_github:  # GitHub webhook
-            return handle_github_webhook(webhook_source_github, data)
-        else:  # GitLab webhook
-            return handle_gitlab_webhook(data)
-    else:
+    if not request.is_json:
         return jsonify({'message': 'Invalid data format'}), 400
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
 
+    # 识别Git提供方
+    provider_config = git_provider_manager.identify_provider(request.headers)
 
-def handle_github_webhook(event_type, data):
-    # 获取GitHub配置
-    github_token = os.getenv('GITHUB_ACCESS_TOKEN') or request.headers.get('X-GitHub-Token')
-    if not github_token:
-        return jsonify({'message': 'Missing GitHub access token'}), 400
+    if not provider_config:
+        return jsonify({"error": "Unknown Git provider or unsupported webhook event"}), 400
 
-    github_url = os.getenv('GITHUB_URL') or 'https://github.com'
-    github_url_slug = slugify_url(github_url)
+    provider_name = provider_config["name"]
+    # 获取访问令牌
+    access_token = git_provider_manager.get_access_token(provider_config, request.headers)
+    if not access_token:
+        return jsonify({'message': f'Missing {provider_name} access token'}), 400
 
-    # 打印整个payload数据
-    logger.info(f'Received GitHub event: {event_type}')
+    # 获取原始事件类型
+    original_event_type = None
+    for header_name, expected_values in provider_config["identification"]["headers"].items():
+        original_event_type = request.headers.get(header_name)
+        if original_event_type:
+            break
+
+    if not original_event_type:
+        return jsonify({"error": "Could not determine original event type"}), 400
+
+    # 映射到内部事件类型
+    event_type = git_provider_manager.get_event_mapping(provider_config, original_event_type)
+    if not event_type:
+        return jsonify({"error": f"Unsupported event type: {original_event_type} for {provider_name}"}), 400
+
+    # 动态加载并调用payload解析器
+    parser_path = git_provider_manager.get_payload_parser_path(provider_config)
+    if not parser_path:
+        return jsonify({"error": f"No payload parser defined for {provider_name}"}), 400
+
+    try:
+        module_name, func_name = parser_path.rsplit('.', 1)
+        parser_module = importlib.import_module(module_name)
+        parser_func = getattr(parser_module, func_name)
+    except (ImportError, AttributeError) as e:
+        return jsonify({"error": f"Failed to load parser for {provider_name}: {e}"}), 500
+
+    try:
+        # 根据不同的解析器函数签名传递参数
+        if provider_name == "github":
+            webhook_event = parser_func(data, access_token, os.getenv('GITHUB_URL'), event_type)
+        elif provider_name == "gitea":
+            webhook_event = parser_func(data, access_token, os.getenv('GITEA_URL'), event_type)
+        elif provider_name == "gitlab":
+            webhook_event = parser_func(data, access_token, os.getenv('GITLAB_URL'))
+        elif provider_name == "coding":
+            webhook_event = parser_func(data, access_token, os.getenv('CODING_URL'), event_type)
+        else:
+            # 对于自定义提供方，可能需要更通用的解析器，或者在配置中指定所有必要参数
+            webhook_event = parser_func(data, access_token, os.getenv(f'{provider_name.upper()}_URL'), event_type)
+
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    logger.info(f'Received {provider_name} event: {webhook_event.event_type}')
     logger.info(f'Payload: {json.dumps(data)}')
 
-    if event_type == "pull_request":
-        # 使用handle_queue进行异步处理
-        handle_queue(handle_github_pull_request_event, data, github_token, github_url, github_url_slug)
-        # 立马返回响应
-        return jsonify(
-            {'message': f'GitHub request received(event_type={event_type}), will process asynchronously.'}), 200
-    elif event_type == "push":
-        # 使用handle_queue进行异步处理
-        handle_queue(handle_github_push_event, data, github_token, github_url, github_url_slug)
-        # 立马返回响应
-        return jsonify(
-            {'message': f'GitHub request received(event_type={event_type}), will process asynchronously.'}), 200
+    # 根据事件类型调用相应的处理函数
+    if webhook_event.event_type == "pull_request":
+        if provider_name == "github":
+            handle_queue(handle_github_pull_request_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        elif provider_name == "gitea":
+            handle_queue(handle_gitea_pull_request_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        elif provider_name == "gitlab":
+            handle_queue(handle_merge_request_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        elif provider_name == "coding":
+            # 假设 Coding 的 pull request 事件由 handle_coding_pull_request_event 处理
+            # 你需要创建 handle_coding_pull_request_event 函数
+            handle_queue(handle_coding_pull_request_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        else:
+            # 对于自定义提供方，需要一个通用的pull request处理函数
+            return jsonify({"error": f"Unsupported pull_request event for {provider_name}"}), 400
+    elif webhook_event.event_type == "push":
+        if provider_name == "github":
+            handle_queue(handle_github_push_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        elif provider_name == "gitea":
+            handle_queue(handle_gitea_push_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        elif provider_name == "gitlab":
+            handle_queue(handle_push_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        elif provider_name == "coding":
+            # 假设 Coding 的 push 事件由 handle_coding_push_event 处理
+            # 你需要创建 handle_coding_push_event 函数
+            handle_queue(handle_coding_push_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
+        else:
+            # 对于自定义提供方，需要一个通用的push处理函数
+            return jsonify({"error": f"Unsupported push event for {provider_name}"}), 400
     else:
-        error_message = f'Only pull_request and push events are supported for GitHub webhook, but received: {event_type}.'
+        error_message = f'Unsupported event type: {webhook_event.event_type} for {provider_name}.'
         logger.error(error_message)
         return jsonify(error_message), 400
 
-
-def handle_gitlab_webhook(data):
-    object_kind = data.get("object_kind")
-
-    # 优先从请求头获取，如果没有，则从环境变量获取，如果没有，则从推送事件中获取
-    gitlab_url = os.getenv('GITLAB_URL') or request.headers.get('X-Gitlab-Instance')
-    if not gitlab_url:
-        repository = data.get('repository')
-        if not repository:
-            return jsonify({'message': 'Missing GitLab URL'}), 400
-        homepage = repository.get("homepage")
-        if not homepage:
-            return jsonify({'message': 'Missing GitLab URL'}), 400
-        try:
-            parsed_url = urlparse(homepage)
-            gitlab_url = f"{parsed_url.scheme}://{parsed_url.netloc}/"
-        except Exception as e:
-            return jsonify({"error": f"Failed to parse homepage URL: {str(e)}"}), 400
-
-    # 优先从环境变量获取，如果没有，则从请求头获取
-    gitlab_token = os.getenv('GITLAB_ACCESS_TOKEN') or request.headers.get('X-Gitlab-Token')
-    # 如果gitlab_token为空，返回错误
-    if not gitlab_token:
-        return jsonify({'message': 'Missing GitLab access token'}), 400
-
-    gitlab_url_slug = slugify_url(gitlab_url)
-
-    # 打印整个payload数据，或根据需求进行处理
-    logger.info(f'Received event: {object_kind}')
-    logger.info(f'Payload: {json.dumps(data)}')
-
-    # 处理Merge Request Hook
-    if object_kind == "merge_request":
-        # 创建一个新进程进行异步处理
-        handle_queue(handle_merge_request_event, data, gitlab_token, gitlab_url, gitlab_url_slug)
-        # 立马返回响应
-        return jsonify(
-            {'message': f'Request received(object_kind={object_kind}), will process asynchronously.'}), 200
-    elif object_kind == "push":
-        # 创建一个新进程进行异步处理
-        # TODO check if PUSH_REVIEW_ENABLED is needed here
-        handle_queue(handle_push_event, data, gitlab_token, gitlab_url, gitlab_url_slug)
-        # 立马返回响应
-        return jsonify(
-            {'message': f'Request received(object_kind={object_kind}), will process asynchronously.'}), 200
-    else:
-        error_message = f'Only merge_request and push events are supported (both Webhook and System Hook), but received: {object_kind}.'
-        logger.error(error_message)
-        return jsonify(error_message), 400
-
-
-def handle_gitea_webhook(event_type, data):
-    gitea_token = os.getenv('GITEA_ACCESS_TOKEN') or request.headers.get('X-Gitea-Token')
-    if not gitea_token:
-        return jsonify({'message': 'Missing Gitea access token'}), 400
-
-    gitea_url = os.getenv('GITEA_URL') or 'https://gitea.com'
-    gitea_url_slug = slugify_url(gitea_url)
-
-    logger.info(f'Received Gitea event: {event_type}')
-    logger.info(f'Payload: {json.dumps(data)}')
-
-    if event_type == "pull_request":
-        handle_queue(handle_gitea_pull_request_event, data, gitea_token, gitea_url, gitea_url_slug)
-        return jsonify(
-            {'message': f'Gitea request received(event_type={event_type}), will process asynchronously.'}), 200
-    elif event_type == "push":
-        handle_queue(handle_gitea_push_event, data, gitea_token, gitea_url, gitea_url_slug)
-        return jsonify(
-            {'message': f'Gitea request received(event_type={event_type}), will process asynchronously.'}), 200
-    else:
-        error_message = f'Only pull_request and push events are supported for Gitea webhook, but received: {event_type}.'
-        logger.error(error_message)
-        return jsonify(error_message), 400
+    return jsonify({'message': f'{provider_name} request received(event_type={webhook_event.event_type}), will process asynchronously.'}), 200
 
 
 if __name__ == '__main__':

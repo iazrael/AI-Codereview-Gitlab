@@ -1,0 +1,98 @@
+{
+    "action": "create",
+    "number": 776,
+    "mergeRequest": {
+        "id": 104428,
+        "url": "http://dev.coding.zego.cloud/api/team/dev/project/aiagent/git/merge/776",
+        "html_url": "http://dev.coding.zego.cloud/p/aiagent/d/chat_engine/git/merge/776",
+        "patch_url": "http://dev.coding.zego.cloud/p/aiagent/d/chat_engine/git/merge/776.patch",
+        "diff_url": "http://dev.coding.zego.cloud/p/aiagent/d/chat_engine/git/merge/776.diff",
+        "number": 776,
+        "state": "CANMERGE",
+        "title": "test",
+        "body": "",
+        "user": {
+            "id": 222,
+            "login": "WGnLWacJNf",
+            "avatar_url": "http://minio.coding.zego.cloud/coding-static-bucket-public/WM-TEXT-AVATAR-GoTjExwxWjoLDjvkycyD.jpg",
+            "url": "http://dev.coding.zego.cloud/api/user/key/WGnLWacJNf",
+            "html_url": "http://dev.coding.zego.cloud/u/WGnLWacJNf",
+            "name": "azraellong",
+            "name_pinyin": "azraellong"
+        },
+        "created_at": 1764749063404,
+        "updated_at": 1764749063404,
+        "merge_commit_sha": "fe254a9735c5c8964ab2df47a0c933e729762a58",
+        "head": {
+            "label": "dev:release/2.8.5",
+            "ref": "release/2.8.5",
+            "sha": "24b47a9505af3f214ff485fcbf93f0d62872c175",
+            "user": "[Object]",
+            "repo": "[Object]"
+        },
+        "base": {
+            "label": "dev:release/2.8.0",
+            "ref": "release/2.8.0",
+            "sha": "3decdfa534475b8dc259fde41a944f18dcea9b85",
+            "user": "[Object]",
+            "repo": "[Object]"
+        },
+        "merged": false,
+        "comments": 0,
+        "commits": 8,
+        "additions": 1,
+        "deletions": 0,
+        "changed_files": 27
+    },
+    "sender": {
+        "id": 222,
+        "login": "WGnLWacJNf",
+        "avatar_url": "http://minio.coding.zego.cloud/coding-static-bucket-public/WM-TEXT-AVATAR-GoTjExwxWjoLDjvkycyD.jpg",
+        "url": "http://dev.coding.zego.cloud/api/user/key/WGnLWacJNf",
+        "html_url": "http://dev.coding.zego.cloud/u/WGnLWacJNf",
+        "name": "azraellong",
+        "name_pinyin": "azraellong"
+    },
+    "repository": {
+        "id": 735798,
+        "name": "chat_engine",
+        "full_name": "dev/aiagent/chat_engine",
+        "owner": {
+            "id": 78,
+            "login": "qgRDfQaXTU",
+            "avatar_url": "http://minio.coding.zego.cloud/coding-static-bucket-public/WM-TEXT-AVATAR-XpqWplWHuxkPrYwUcYgS.jpg",
+            "url": "http://dev.coding.zego.cloud/api/user/key/qgRDfQaXTU",
+            "html_url": "http://dev.coding.zego.cloud/u/qgRDfQaXTU",
+            "name": "vitohuang",
+            "name_pinyin": "vitohuang"
+        },
+        "private": true,
+        "html_url": "http://dev.coding.zego.cloud/p/aiagent",
+        "description": "",
+        "fork": false,
+        "url": "http://dev.coding.zego.cloud/api/team/dev/project/aiagent",
+        "created_at": 1744093214000,
+        "updated_at": 1744093214000,
+        "clone_url": "http://git.e.coding.zego.cloud/dev/aiagent/chat_engine.git",
+        "ssh_url": "git@git.e.coding.zego.cloud:dev/aiagent/chat_engine.git",
+        "default_branch": "release/2.8.0",
+        "vcs_type": "git"
+    },
+    "project": {
+        "id": 723158,
+        "name": "aiagent",
+        "display_name": "aiagent",
+        "description": "",
+        "icon": "https://assets.codehub.cn/static/project_icon/scenery-version-2-13.svg",
+        "url": "https://dev.coding.net/p/aiagent"
+    },
+    "team": {
+        "id": 16,
+        "domain": "dev",
+        "name": "即构",
+        "name_pinyin": "jg|jigou",
+        "introduction": "",
+        "avatar": "http://thumbor.coding.zego.cloud/unsafe/0x0:128x128/128x128/http://minio:9000/coding-static-bucket-public/135d58a8-f759-49db-b05c-1b0373618d6d.png",
+        "url": "https://dev.coding.net"
+    }
+}
