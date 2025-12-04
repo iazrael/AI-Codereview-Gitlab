@@ -27,6 +27,7 @@ from biz.utils.im import notifier
 from biz.utils.log import logger
 from biz.utils.queue import handle_queue
 from biz.utils.reporter import Reporter
+from biz.utils.html_reporter import HTMLReporter
 
 from biz.utils.config_checker import check_config
 
@@ -70,8 +71,22 @@ def daily_report():
         commits = df_sorted.to_dict(orient="records")
         # 生成日报内容
         report_txt = Reporter().generate_report(json.dumps(commits))
+        # 生成HTML报告并保存
+        html_reporter = HTMLReporter()
+        html_content = html_reporter.generate_html_report(report_txt)
+        today_str = datetime.now().strftime("%Y%m%d")
+        html_reporter.save_report(html_content, today_str)
+        
+        # 获取域名用于报告链接
+        domain = os.environ.get('SERVER_DOMAIN', f'http://localhost:{os.environ.get("SERVER_PORT", 5001)}')
+        report_url = f"{domain}/reports/{today_str}.html"
+        
+        # 在通知中添加报告链接
+        report_link = f"\n\n[查看详细报告]({report_url})"
+        report_txt_with_link = report_txt + report_link
+        
         # 发送钉钉通知
-        notifier.send_notification(content=report_txt, msg_type="markdown", title="代码提交日报")
+        notifier.send_notification(content=report_txt_with_link, msg_type="markdown", title="代码提交日报")
 
         # 返回生成的日报内容
         return json.dumps(report_txt, ensure_ascii=False, indent=4)
@@ -228,6 +243,43 @@ def handle_webhook():
         return jsonify(error_message), 400
 
     return jsonify({'message': f'{provider_name} request received(event_type={webhook_event.event_type}), will process asynchronously.'}), 200
+
+
+# 添加报告访问路由
+@api_app.route('/reports/')
+def list_reports():
+    """获取报告列表"""
+    try:
+        html_reporter = HTMLReporter()
+        reports = html_reporter.get_report_list()
+        return jsonify(reports)
+    except Exception as e:
+        logger.error(f"Failed to list reports: {e}")
+        return jsonify({'message': f"Failed to list reports: {e}"}), 500
+
+
+@api_app.route('/reports/<date>.html')
+def get_report(date):
+    """获取指定日期的报告"""
+    try:
+        # 验证日期格式
+        datetime.strptime(date, "%Y%m%d")
+        
+        # 构造文件路径
+        reports_dir = "/app/data/reports"
+        filepath = os.path.join(reports_dir, f"report_{date}.html")
+        
+        # 检查文件是否存在
+        if not os.path.exists(filepath):
+            return jsonify({'message': 'Report not found'}), 404
+            
+        # 返回HTML文件内容
+        return open(filepath, 'r', encoding='utf-8').read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
+    except ValueError:
+        return jsonify({'message': 'Invalid date format'}), 400
+    except Exception as e:
+        logger.error(f"Failed to get report: {e}")
+        return jsonify({'message': f"Failed to get report: {e}"}), 500
 
 
 if __name__ == '__main__':

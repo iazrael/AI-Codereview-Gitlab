@@ -5,6 +5,7 @@ from blinker import Signal
 from biz.entity.review_entity import MergeRequestReviewEntity, PushReviewEntity
 from biz.service.review_service import ReviewService
 from biz.utils.im import notifier
+from biz.utils.html_reporter import HTMLReporter
 
 # 定义全局事件管理器（事件信号）
 event_manager = {
@@ -44,6 +45,24 @@ def on_merge_request_reviewed(mr_review_entity: MergeRequestReviewEntity):
 
 {mr_review_entity.review_result}
     """
+    
+    # 生成静态HTML报告
+    html_reporter = HTMLReporter()
+        # 生成HTML报告
+    html_content = html_reporter.generate_html_report(report_content)
+    # 使用日期和last_commit_id作为文件名
+    date_str = datetime.now().strftime("%Y%m%d")
+    filename = f"{date_str}_{mr_review_entity.last_commit_id}"
+    html_reporter.save_report(html_content, filename)
+    
+    # 获取域名用于报告链接
+    domain = os.environ.get('SERVER_DOMAIN', f'http://localhost:{os.environ.get("SERVER_PORT", 5001)}')
+    report_url = f"{domain}/reports/{filename}.html"
+    
+    # 在通知中添加报告链接
+    report_link = f"\n\n[查看详细报告]({report_url})"
+    im_msg += report_link
+    
     notifier.send_notification(content=im_msg, msg_type='markdown', title='Merge Request Review',
                                project_name=mr_review_entity.project_name, url_slug=mr_review_entity.url_slug,
                                webhook_data=mr_review_entity.webhook_data)
@@ -88,6 +107,23 @@ def on_push_reviewed(entity: PushReviewEntity):
 
     if entity.review_result:
         im_msg += f"#### AI Review 结果: \n {entity.review_result}\n\n"
+        
+    # 生成静态HTML报告
+    html_reporter = HTMLReporter()
+    # 使用日期和第一个commit的ID作为文件名（如果没有commit ID，则使用随机字符串）
+    date_str = datetime.now().strftime("%Y%m%d")
+    first_commit_id = entity.commits[0]['id'][:8] if entity.commits and 'id' in entity.commits[0] else 'unknown'
+    filename = f"{date_str}_{first_commit_id}"
+    html_reporter.save_report(html_reporter.generate_html_report(im_msg), filename)
+    
+    # 获取域名用于报告链接
+    domain = os.environ.get('SERVER_DOMAIN', f'http://localhost:{os.environ.get("SERVER_PORT", 5001)}')
+    report_url = f"{domain}/reports/{filename}.html"
+    
+    # 在通知中添加报告链接
+    report_link = f"\n\n[查看详细报告]({report_url})"
+    im_msg += report_link
+    
     notifier.send_notification(content=im_msg, msg_type='markdown',title=f"{entity.project_name} Push Event",
                                project_name=entity.project_name, url_slug=entity.url_slug,
                                webhook_data=entity.webhook_data)

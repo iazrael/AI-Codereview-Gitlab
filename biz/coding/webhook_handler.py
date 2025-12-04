@@ -136,7 +136,7 @@ def handle_coding_pull_request_event(data: dict, coding_token: str, coding_url: 
 
     except Exception as e:
         error_message = f"AI Code Review 服务出现未知错误: {str(e)} \n{traceback.format_exc()}"
-        # notifier.send_notification(content=error_message) # 如果需要通知，可以取消注释
+        notifier.send_notification(content=error_message) # 如果需要通知，可以取消注释
         logger.error(f"Error processing Coding PR {pull_request_id}: {error_message}")
         return
 
@@ -211,6 +211,6 @@ def handle_coding_push_event(data: dict, coding_token: str, coding_url: str, cod
 
     except Exception as e:
         error_message = f"AI Code Review 服务出现未知错误: {str(e)}\n{traceback.format_exc()}"
-        # notifier.send_notification(content=error_message) # 如果需要通知，可以取消注释
+        notifier.send_notification(content=error_message) # 如果需要通知，可以取消注释
         logger.error(f"Error processing Coding Push event: {error_message}")
         return
