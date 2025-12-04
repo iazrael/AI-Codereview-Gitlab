@@ -12,6 +12,7 @@ from biz.entity.review_entity import MergeRequestReviewEntity, PushReviewEntity
 from biz.service.review_service import ReviewService
 from biz.utils.code_reviewer import CodeReviewer
 from biz.event.event_manager import event_manager
+from biz.utils.im import notifier
 
 def filter_changes(changes: list):
     '''

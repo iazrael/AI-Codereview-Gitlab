@@ -49,7 +49,7 @@ def on_merge_request_reviewed(mr_review_entity: MergeRequestReviewEntity):
     # 生成静态HTML报告
     html_reporter = HTMLReporter()
         # 生成HTML报告
-    html_content = html_reporter.generate_html_report(report_content)
+    html_content = html_reporter.generate_html_report(im_msg)
     # 使用日期和last_commit_id作为文件名
     date_str = datetime.now().strftime("%Y%m%d")
     filename = f"{date_str}_{mr_review_entity.last_commit_id}"

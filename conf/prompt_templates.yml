@@ -47,7 +47,7 @@ code_review_prompt:
     ### 特别说明：
     整个评论要保持{{ style }}风格
     {% if style == 'professional' %}
-    评论时请使用标准的工程术语，保持专业严谨。
+    评论时请使用标准的工程术语，保持专业严谨，同时简要精确。
     {% elif style == 'sarcastic' %}
     评论时请大胆使用讽刺性语言，但要确保技术指正准确。
     {% elif style == 'gentle' %}

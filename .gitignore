@@ -15,4 +15,4 @@ __pycache__/
 .cursorignore
 .cursor
 .qoder
-.vscode
+.vscode/*
