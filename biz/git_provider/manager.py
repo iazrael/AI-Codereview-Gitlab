@@ -1,7 +1,7 @@
 import json
 import os
 from typing import Dict, Any, Optional, List
-
+from biz.utils.log import logger
 class GitProviderManager:
     def __init__(self, config_path="conf/git_providers.json"):
         self.config_path = config_path
@@ -21,7 +21,7 @@ class GitProviderManager:
 
     def identify_provider(self, headers: Dict[str, str]) -> Optional[Dict[str, Any]]:
         # 打印一下 headers
-        print(f"headers: {headers}")
+        logger.info(f"headers: {headers}")
         for provider_config in self.providers_config.get("providers", []):
             identification_rules = provider_config.get("identification", {})
             headers_rules = identification_rules.get("headers", {})

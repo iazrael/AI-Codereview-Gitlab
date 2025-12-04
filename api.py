@@ -123,16 +123,20 @@ def handle_webhook():
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
 
+    # logger.info(f"Received webhook headers: {request.headers}")
+    logger.info(f"Received webhook data: {data}")
     # 识别Git提供方
     provider_config = git_provider_manager.identify_provider(request.headers)
 
     if not provider_config:
+        logger.error(f"Unknown Git provider or unsupported webhook event")
         return jsonify({"error": "Unknown Git provider or unsupported webhook event"}), 400
 
     provider_name = provider_config["name"]
     # 获取访问令牌
     access_token = git_provider_manager.get_access_token(provider_config, request.headers)
     if not access_token:
+        logger.error(f"Missing {provider_name} access token")
         return jsonify({'message': f'Missing {provider_name} access token'}), 400
 
     # 获取原始事件类型
@@ -143,16 +147,19 @@ def handle_webhook():
             break
 
     if not original_event_type:
+        logger.error(f"Could not determine original event type from headers")
         return jsonify({"error": "Could not determine original event type"}), 400
 
     # 映射到内部事件类型
     event_type = git_provider_manager.get_event_mapping(provider_config, original_event_type)
     if not event_type:
+        logger.error(f"Unsupported event type: {original_event_type} for {provider_name}")
         return jsonify({"error": f"Unsupported event type: {original_event_type} for {provider_name}"}), 400
 
     # 动态加载并调用payload解析器
     parser_path = git_provider_manager.get_payload_parser_path(provider_config)
     if not parser_path:
+        logger.error(f"No payload parser defined for {provider_name}")
         return jsonify({"error": f"No payload parser defined for {provider_name}"}), 400
 
     try:
@@ -160,6 +167,7 @@ def handle_webhook():
         parser_module = importlib.import_module(module_name)
         parser_func = getattr(parser_module, func_name)
     except (ImportError, AttributeError) as e:
+        logger.error(f"Failed to load parser for {provider_name}: {e}")
         return jsonify({"error": f"Failed to load parser for {provider_name}: {e}"}), 500
 
     try:
@@ -177,6 +185,7 @@ def handle_webhook():
             webhook_event = parser_func(data, access_token, os.getenv(f'{provider_name.upper()}_URL'), event_type)
 
     except ValueError as e:
+        logger.error(f"Error parsing payload for {provider_name}: {e}")
         return jsonify({"error": str(e)}), 400
 
     logger.info(f'Received {provider_name} event: {webhook_event.event_type}')
@@ -195,6 +204,7 @@ def handle_webhook():
             # 你需要创建 handle_coding_pull_request_event 函数
             handle_queue(handle_coding_pull_request_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
         else:
+            logger.error(f"Unsupported pull_request event for {provider_name}")
             # 对于自定义提供方，需要一个通用的pull request处理函数
             return jsonify({"error": f"Unsupported pull_request event for {provider_name}"}), 400
     elif webhook_event.event_type == "push":
@@ -210,6 +220,7 @@ def handle_webhook():
             handle_queue(handle_coding_push_event, webhook_event.payload, webhook_event.token, webhook_event.url, webhook_event.url_slug)
         else:
             # 对于自定义提供方，需要一个通用的push处理函数
+            logger.error(f"Unsupported push event for {provider_name}")
             return jsonify({"error": f"Unsupported push event for {provider_name}"}), 400
     else:
         error_message = f'Unsupported event type: {webhook_event.event_type} for {provider_name}.'
