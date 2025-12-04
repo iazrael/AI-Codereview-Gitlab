@@ -50,6 +50,18 @@ def home():
 
 @api_app.route('/review/daily_report', methods=['GET'])
 def daily_report():
+    
+    result = daily_report_task()
+    if not result['success']:
+        return jsonify({'message': f"Failed to generate daily report: {result['message']}"}), 500
+    # 重定向到 report_url
+    html_content = result['html_content']
+    return html_content
+
+def daily_report_task():
+    """
+    定时任务调用的版本，不依赖Flask应用上下文
+    """
     # 获取当前日期0点和23点59分59秒的时间戳
     start_time = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     end_time = datetime.now().replace(hour=23, minute=59, second=59, microsecond=0).timestamp()
@@ -62,7 +74,8 @@ def daily_report():
 
         if df.empty:
             logger.info("No data to process.")
-            return jsonify({'message': 'No data to process.'}), 200
+            return {'message': 'No data to process.', 'success': False}
+            
         # 去重：基于 (author, message) 组合
         df_unique = df.drop_duplicates(subset=["author", "commit_messages"])
         # 按照 author 排序
@@ -89,10 +102,11 @@ def daily_report():
         notifier.send_notification(content=report_txt_with_link, msg_type="markdown", title="代码提交日报")
 
         # 返回生成的日报内容
-        return json.dumps(report_txt, ensure_ascii=False, indent=4)
+        return {'message': 'Daily report generated successfully', 'report': report_txt, 'success': True, 'html_content': html_content}
     except Exception as e:
         logger.error(f"Failed to generate daily report: {e}")
-        return jsonify({'message': f"Failed to generate daily report: {e}"}), 500
+        logger.error(traceback.format_exc())
+        return {'message': f"Failed to generate daily report: {e}", 'success': False}
 
 
 def setup_scheduler():
@@ -108,7 +122,7 @@ def setup_scheduler():
 
         # Schedule the task based on the crontab expression
         scheduler.add_job(
-            daily_report,
+            daily_report_task,  # 使用新的不依赖Flask上下文的函数
             trigger=CronTrigger(
                 minute=cron_minute,
                 hour=cron_hour,
