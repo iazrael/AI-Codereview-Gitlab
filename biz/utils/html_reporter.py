@@ -5,7 +5,7 @@ from biz.utils.log import logger
 
 
 class HTMLReporter:
-    def __init__(self, reports_dir="/data/azrael/workspaces/AI-Codereview-Gitlab/data/reports"):
+    def __init__(self, reports_dir="/app/data/reports"):
         """
         初始化HTML报告生成器
         :param reports_dir: 报告存储目录
@@ -114,7 +114,7 @@ class HTMLReporter:
 </html>"""
         return template
     
-    def save_report(self, html_content: str, date_str: str = None) -> str:
+    def save_report(self, html_content: str, date_str: str = None, filename: str = None) -> str:
         """
         保存HTML报告到文件
         :param html_content: HTML格式的报告内容
@@ -124,16 +124,16 @@ class HTMLReporter:
         if date_str is None:
             date_str = datetime.now().strftime("%Y%m%d")
         
-        filename = f"report_{date_str}.html"
-        filepath = os.path.join(self.reports_dir, filename)
+        filename = f"{filename}.html"
+        filepath = os.path.join(self.reports_dir, date_str, filename)
         
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(html_content)
-            logger.info(f"HTML报告已保存到: {filepath}")
+            logger.info(f"{date_str} HTML报告已保存到: {filepath}")
             return filepath
         except Exception as e:
-            logger.error(f"保存HTML报告失败: {e}")
+            logger.error(f"{date_str} 保存HTML报告失败: {e}")
             raise
     
     def get_report_list(self) -> list:

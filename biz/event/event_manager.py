@@ -52,12 +52,12 @@ def on_merge_request_reviewed(mr_review_entity: MergeRequestReviewEntity):
     html_content = html_reporter.generate_html_report(im_msg)
     # 使用日期和last_commit_id作为文件名
     date_str = datetime.now().strftime("%Y%m%d")
-    filename = f"{date_str}_{mr_review_entity.last_commit_id}"
-    html_reporter.save_report(html_content, filename)
+    filename = f"merge_request_reviewed_{mr_review_entity.last_commit_id}"
+    html_reporter.save_report(html_content, date_str, filename)
     
     # 获取域名用于报告链接
     domain = os.environ.get('SERVER_DOMAIN', f'http://localhost:{os.environ.get("SERVER_PORT", 5001)}')
-    report_url = f"{domain}/reports/{filename}.html"
+    report_url = f"{domain}/reports/{date_str}/{filename}.html"
     
     # 在通知中添加报告链接
     report_link = f"\n\n[查看详细报告]({report_url})"
@@ -113,12 +113,12 @@ def on_push_reviewed(entity: PushReviewEntity):
     # 使用日期和第一个commit的ID作为文件名（如果没有commit ID，则使用随机字符串）
     date_str = datetime.now().strftime("%Y%m%d")
     first_commit_id = entity.commits[0]['id'][:8] if entity.commits and 'id' in entity.commits[0] else 'unknown'
-    filename = f"{date_str}_{first_commit_id}"
-    html_reporter.save_report(html_reporter.generate_html_report(im_msg), filename)
+    filename = f"push_reviewed_{first_commit_id}"
+    html_reporter.save_report(html_reporter.generate_html_report(im_msg), date_str, filename)
     
     # 获取域名用于报告链接
     domain = os.environ.get('SERVER_DOMAIN', f'http://localhost:{os.environ.get("SERVER_PORT", 5001)}')
-    report_url = f"{domain}/reports/{filename}.html"
+    report_url = f"{domain}/reports/{date_str}/{filename}.html"
     
     # 在通知中添加报告链接
     report_link = f"\n\n[查看详细报告]({report_url})"

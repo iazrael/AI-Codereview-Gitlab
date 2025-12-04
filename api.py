@@ -75,11 +75,11 @@ def daily_report():
         html_reporter = HTMLReporter()
         html_content = html_reporter.generate_html_report(report_txt)
         today_str = datetime.now().strftime("%Y%m%d")
-        html_reporter.save_report(html_content, today_str)
+        html_reporter.save_report(html_content, today_str, 'daily_report')
         
         # 获取域名用于报告链接
         domain = os.environ.get('SERVER_DOMAIN', f'http://localhost:{os.environ.get("SERVER_PORT", 5001)}')
-        report_url = f"{domain}/reports/{today_str}.html"
+        report_url = f"{domain}/reports/{today_str}/daily_report.html"
         
         # 在通知中添加报告链接
         report_link = f"\n\n[查看详细报告]({report_url})"
@@ -258,16 +258,14 @@ def list_reports():
         return jsonify({'message': f"Failed to list reports: {e}"}), 500
 
 
-@api_app.route('/reports/<date>.html')
-def get_report(date):
+@api_app.route('/reports/<date>/<filename>.html')
+def get_report(date, filename):
     """获取指定日期的报告"""
     try:
-        # 验证日期格式
-        datetime.strptime(date, "%Y%m%d")
         
         # 构造文件路径
         reports_dir = "/app/data/reports"
-        filepath = os.path.join(reports_dir, f"report_{date}.html")
+        filepath = os.path.join(reports_dir, f"{date}/{filename}.html")
         
         # 检查文件是否存在
         if not os.path.exists(filepath):
@@ -275,8 +273,6 @@ def get_report(date):
             
         # 返回HTML文件内容
         return open(filepath, 'r', encoding='utf-8').read(), 200, {'Content-Type': 'text/html; charset=utf-8'}
-    except ValueError:
-        return jsonify({'message': 'Invalid date format'}), 400
     except Exception as e:
         logger.error(f"Failed to get report: {e}")
         return jsonify({'message': f"Failed to get report: {e}"}), 500
