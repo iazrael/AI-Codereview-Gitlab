@@ -9,6 +9,7 @@ class Reporter:
         # 根据data生成报告
         return self.client.completions(
             messages=[
-                {"role": "user", "content": f"{data} \n---\n上面是以json格式记录员工代码提交信息。请总结这些信息，生成每个员工的代码评审日报摘要。员工姓名直接用json内容中的author属性值，不要进行转换。特别要求:以Markdown格式返回，不要回答其他内容。"},
+                  {"role": "system", "content": "你是一位严苛的代码审查者，负责根据今日评审结果编写工作日报，你需要为每一个员工（author）的评审结果（review_result）对他们的问题情况进行汇总。"}, 
+                {"role": "user", "content": f"{data} \n---\n请按员工的名字（author)分别生成今天日报。特别要求:以Markdown格式返回，不要回答其他内容。"},
             ],
         )
