@@ -400,7 +400,8 @@ class HTMLReporter:
         
         filename = f"{filename}.html"
         filepath = os.path.join(self.reports_dir, date_str, filename)
-        
+        # 确保目录存在
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
         try:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(html_content)

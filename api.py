@@ -1,3 +1,4 @@
+import logging
 from dotenv import load_dotenv
 
 load_dotenv("conf/.env")
@@ -82,6 +83,7 @@ def daily_report_task():
         df_sorted = df_unique.sort_values(by="author")
         # 转换为适合生成日报的格式
         commits = df_sorted.to_dict(orient="records")
+        logging.info(f"日报总结内容：{json.dumps(commits)}")
         # 生成日报内容
         report_txt = Reporter().generate_report(json.dumps(commits))
         # 生成HTML报告并保存

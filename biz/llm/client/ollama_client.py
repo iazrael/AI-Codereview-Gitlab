@@ -40,6 +40,9 @@ class OllamaClient(BaseClient):
                     messages: List[Dict[str, str]],
                     model: Optional[str] | NotGiven = NOT_GIVEN,
                     ) -> str:
-        response: ChatResponse = self.client.chat(model or self.default_model, messages)
+        response: ChatResponse = self.client.chat(model or self.default_model, messages, options={
+            "temperature": 0.01,
+            "top_p": 1.0,
+        })
         content = response['message']['content']
         return self._extract_content(content)
