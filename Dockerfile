@@ -13,7 +13,8 @@ COPY requirements.txt .
 # 安装依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
-RUN mkdir -p log data conf az17
+RUN echo "v1.0.2" > .version
+RUN mkdir -p log data conf
 COPY biz ./biz
 COPY fonts ./fonts
 COPY api.py ./api.py
